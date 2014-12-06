@@ -314,11 +314,11 @@ echo ">>>>>>>>>net node"
 #apt-get -y --force-yes install neutron-plugin-ml2 neutron-plugin-openvswitch-agent \
 #openvswitch-datapath-dkms \
 #neutron-l3-agent neutron-dhcp-agent
-
-apt-get -y --force-yes install neutron-plugin-ml2
-apt-get -y --force-yes install neutron-plugin-openvswitch-agent
-apt-get -y --force-yes install openvswitch-datapath-dkms
-apt-get -y --force-yes install neutron-l3-agent neutron-dhcp-agent
+#install in network node
+#apt-get -y --force-yes install neutron-plugin-ml2
+#apt-get -y --force-yes install neutron-plugin-openvswitch-agent
+#apt-get -y --force-yes install openvswitch-datapath-dkms
+#apt-get -y --force-yes install neutron-l3-agent neutron-dhcp-agent
 sleep 2
 
 cp -f ${CONF_DIR}/neutron.conf /etc/neutron/neutron.conf
@@ -377,14 +377,7 @@ apt-get -y --force-yes install apache2 memcached libapache2-mod-wsgi openstack-d
 apt-get -y --force-yes remove --purge openstack-dashboard-ubuntu-theme
 sed -i '/^OPENSTACK_HOST/c OPENSTACK_HOST = "controller"' /etc/openstack-dashboard/local_settings.py
 
-echo ">>>>>>>>>>>>>>>install ui>>>>>>>>>>>>>>>>"
-CSS_NAME=$(ls /usr/share/openstack-dashboard/openstack_dashboard/static/dashboard/css/)
-echo ">>>>>CSS_NAME:"${CSS_NAME}
-cp -f ${DASHBOARD_DIR}/template.css /usr/share/openstack-dashboard/openstack_dashboard/static/dashboard/css/${CSS_NAME}
-cp -f ${DASHBOARD_DIR}/img/* /usr/share/openstack-dashboard/openstack_dashboard/static/dashboard/img/
-cp -f ${DASHBOARD_DIR}/_login.html /usr/lib/python2.7/dist-packages/horizon/templates/auth/
-cp -f ${DASHBOARD_DIR}/base.html /usr/lib/python2.7/dist-packages/horizon/templates/
-
+'''
 echo "+++++++++++++++++install cinder+++++++++++++++++"
 apt-get -y --force-yes install cinder-api
 apt-get -y --force-yes install cinder-scheduler
@@ -444,15 +437,16 @@ KeystoneCheckResult endpoint http://controller:8776/v2
 
 service cinder-scheduler restart
 service cinder-api restart
-
+'''
 #restart service
 echo "+++++++++++++++++restart service+++++++++++++++++"
 
 #clean
+'''
 echo "+++++++++++++++++clean+++++++++++++++++"
 rm -rf /etc/apt/sources.list
 mv /etc/apt/sources.list.openstackback /etc/apt/sources.list
 #sed -i '$d' /etc/apt/sources.list
 rm -rf Packages
-
+'''
 echo "+++++++++++++++++Install over+++++++++++++++++"

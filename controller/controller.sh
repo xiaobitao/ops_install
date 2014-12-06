@@ -56,7 +56,8 @@ umask 022
 TOP_DIR=$(cd $(dirname "$0") && pwd)
 REBOOT_CMD="sh ""${TOP_DIR}""/controller2.sh ""${CONTROLLER}"" ""${INSTANCE_TUNNELS_INTERFACE_IP_ADDRESS}"">""${TOP_DIR}""/install.log &"
 PACKAGETAR="Packages.tar.gz"
-
+#not use local package
+'''
 if [ ! -f "${PACKAGETAR}" ]
 	then 
 		echo "not find ${PACKAGETAR}"
@@ -72,10 +73,12 @@ mv /etc/apt/sources.list /etc/apt/sources.list.openstackback
 echo "deb file://${TOP_DIR} Packages/" > /etc/apt/sources.list
 #echo "deb file://${TOP_DIR} Packages/" >> /etc/apt/sources.list
 cat /etc/apt/sources.list
-
+'''
 #install
-#apt-get install python-software-properties
-#add-apt-repository cloud-archive:icehouse
+apt-get install python-software-properties
+apt-get install software-properties-common 
+#this is the version of openstack
+add-apt-repository cloud-archive:juno
 apt-get update
 
 #config mysql
