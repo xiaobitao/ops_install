@@ -307,7 +307,7 @@ sleep 15
 KeystoneCheckResult endpoint http://controller:9696
 
 echo ">>>>>>>>>control node"
-apt-get -y --force-yes install neutron-server neutron-plugin-ml2
+apt-get -y --force-yes install neutron-server neutron-plugin-ml2 python-neutronclient
 sleep 2
 echo ">>>>>>>>>net node"
 
@@ -365,7 +365,7 @@ echo "+++++++++++++++++restart net node service+++++++++++++++++"
 service openvswitch-switch restart
 ovs-vsctl add-br br-int
 ovs-vsctl add-br br-ex
-ovs-vsctl add-port br-ex eth2
+#ovs-vsctl add-port br-ex eth2
 
 service neutron-plugin-openvswitch-agent restart
 service neutron-l3-agent restart
