@@ -75,10 +75,10 @@ echo "deb file://${TOP_DIR} Packages/" > /etc/apt/sources.list
 cat /etc/apt/sources.list
 '''
 #install
-apt-get install python-software-properties
-apt-get install software-properties-common 
+#apt-get install python-software-properties
+#apt-get install software-properties-common 
 #this is the version of openstack
-add-apt-repository cloud-archive:juno
+#add-apt-repository cloud-archive:juno
 apt-get update
 
 #config mysql

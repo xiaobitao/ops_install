@@ -336,20 +336,20 @@ sleep 2
 
 sed -i "/^local_ip/c local_ip = ${INSTANCE_TUNNELS_INTERFACE_IP_ADDRESS}" /etc/neutron/plugins/ml2/ml2_conf.ini
 echo ">>>>>>>>>>>>>>>config l3>>>>>>>>>>>>>>>>"
-neutron router-create demo-router
-sleep 15
+#neutron router-create demo-router
+#sleep 15
 
-ROUTER_ID=$(neutron router-list  | awk '/ demo-router / {print $2}') 
-echo ${ROUTER_ID}
-neutron net-create ext-net --shared --router:external=True
-sleep 15
+#ROUTER_ID=$(neutron router-list  | awk '/ demo-router / {print $2}') 
+#echo ${ROUTER_ID}
+#neutron net-create ext-net --shared --router:external=True
+#sleep 15
 
-EXT_NET_ID=$(neutron net-list  | awk '/ ext-net / {print $2}') 
-echo ${EXT_NET_ID}
+#EXT_NET_ID=$(neutron net-list  | awk '/ ext-net / {print $2}') 
+#echo ${EXT_NET_ID}
 
 #neutron router-gateway-set router1 EXT_NET_ID
-sed -i "/^router_id/c router_id = ${ROUTER_ID}" /etc/neutron/l3_agent.ini
-sed -i "/^gateway_external_network_id/c gateway_external_network_id = ${EXT_NET_ID}" /etc/neutron/l3_agent.ini
+#sed -i "/^router_id/c router_id = ${ROUTER_ID}" /etc/neutron/l3_agent.ini
+#sed -i "/^gateway_external_network_id/c gateway_external_network_id = ${EXT_NET_ID}" /etc/neutron/l3_agent.ini
 
 echo ">>>>>>>>>>>>>>>config l3 over>>>>>>>>>>>>>"
 
