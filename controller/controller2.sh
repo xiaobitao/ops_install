@@ -350,7 +350,7 @@ echo ">>>>>>>>>>>>>>>config l3>>>>>>>>>>>>>>>>"
 #neutron router-gateway-set router1 EXT_NET_ID
 #sed -i "/^router_id/c router_id = ${ROUTER_ID}" /etc/neutron/l3_agent.ini
 #sed -i "/^gateway_external_network_id/c gateway_external_network_id = ${EXT_NET_ID}" /etc/neutron/l3_agent.ini
-
+neutron-db-manage --config-file /etc/neutron/neutron.conf upgrade head
 echo ">>>>>>>>>>>>>>>config l3 over>>>>>>>>>>>>>"
 
 echo "+++++++++++++++++restart control node service+++++++++++++++++"
