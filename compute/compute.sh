@@ -56,13 +56,14 @@ fi
 CONTROLLER=$1
 LOCAL=$2
 LOCAL2=$3
-
+apt-get update
 umask 022
 
 TOP_DIR=$(cd $(dirname "$0") && pwd)
 REBOOT_CMD="${TOP_DIR}""/compute2.sh ""${CONTROLLER}"" ""${LOCAL}"" ""${LOCAL2} "">""${TOP_DIR}""/install.log &"
 PACKAGETAR="Packages.tar.gz"
 
+'''
 if [ ! -f "${PACKAGETAR}" ]; then 
 echo "not find ${PACKAGETAR}"
 exit -1
@@ -79,7 +80,7 @@ echo "deb file://${TOP_DIR} Packages/" > /etc/apt/sources.list
 #install
 apt-get update
 apt-get -y --force-yes dist-upgrade
-
+'''
 sed -i '$i\openstack_sh'  /etc/rc.local
 sed -i "s#openstack_sh#${REBOOT_CMD}#" /etc/rc.local
 echo ${REBOOT_CMD}
