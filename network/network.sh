@@ -74,7 +74,7 @@ apt-get update
 #apt-get update
 
 
-
+apt-get install python-mysqldb 
 
 apt-get -y --force-yes install neutron-plugin-ml2 neutron-plugin-openvswitch-agent \
 openvswitch-datapath-dkms \
