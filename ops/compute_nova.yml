@@ -1,24 +1,26 @@
 - hosts: compute
   remote_user: root
   tasks:
-    - name: remove current repo
-      file:
-        path: "{{item}}"
-        state: absent
-      with_fileglob:
-        - /etc/yum.repos.d/*.repo
-      retries: 10
-      delay: 5
 
-    - name: Add repository
-      yum_repository:
-        name: yeecloud
-        description: add yeecloud repo
-        baseurl: http://192.168.16.111/centos73/
-        enabled: yes
-        gpgcheck: no
+    - name: iptables flush
+      command: iptables -F
+
+    - name: update all package
+      yum:
+        name: "*"
+        state: latest
+
+
+
+    - name: install openstack repo
+      yum:
+        name: centos-release-openstack-pike
+        state: latest
+
+
     - name: make cache
       command: yum makecache
+
 
     - name: nova package
       yum: pkg={{item}} state=installed
