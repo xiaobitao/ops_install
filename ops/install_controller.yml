@@ -1,0 +1,346 @@
+- hosts: controller
+  remote_user: root
+  tasks:
+    - name: iptables flush
+      command: iptables -F
+
+    - name: update all package
+      yum:
+        name: "*"
+        state: latest
+
+
+
+    - name: install openstack repo
+      yum:
+        name: centos-release-openstack-pike
+        state: latest
+
+
+    - name: make cache
+      command: yum makecache
+    - name: install ntp
+      yum:
+        name: chrony
+        state: latest
+
+    - name: change ntp server
+      lineinfile:
+        dest: /etc/chrony.conf
+        line: server cn.pool.ntp.org iburst
+    - name: retstart chrony
+      service:
+        name: chronyd
+        enabled: yes
+        state: restarted
+        
+    - name: opestack client
+      yum:
+        name: python-openstackclient
+        state: latest
+    - name: mariadb
+      yum: pkg={{item}} state=installed
+      with_items:
+        - mariadb
+        - mariadb-server
+        - python2-PyMySQL
+        - python-pip
+        - MySQL-python
+        - rabbitmq-server
+        - memcached 
+        - python-memcached
+        - openstack-glance
+      retries: 5
+
+    - name: Create config file
+      file:
+        dest: /etc/my.cnf.d/openstack.cnf
+        state: touch
+        mode: 0755
+
+    - name: Config the maridb config
+      lineinfile:
+        dest: /etc/my.cnf.d/openstack.cnf
+        line: "{{ item.line }}"
+      with_items:
+        - { line: '[mysqld]' }
+        - { line: 'bind-address = 0.0.0.0' }
+        - { line: 'default-storage-engine = innodb' }
+        - { line: 'innodb_file_per_table = on' }
+        - { line: 'max_connections = 4096' }
+        - { line: 'collation-server = utf8_general_ci' }
+        - { line: 'character-set-server = utf8' }
+
+    - name: retstart mariadb
+      service:
+        name: mariadb
+        enabled: yes
+        state: restarted
+    - name: Change root user password on first run
+      mysql_user: login_user=root
+                  login_password=''
+                  name=root
+                  password='admin'
+                  priv=*.*:ALL,GRANT
+                  host={{ item }}
+      with_items:
+        - 0.0.0.0/0
+        - 127.0.0.1
+        - ::1
+        - "%"
+        - localhost
+      ignore_errors: True
+
+    - name: retstart rabbitmq
+      service:
+        name: rabbitmq-server
+        enabled: yes
+        state: restarted
+    - rabbitmq_user:
+        user: openstack
+        password: admin
+        vhost: /
+        configure_priv: .*
+        read_priv: .*
+        write_priv: .*
+        state: present 
+      ignore_errors: True
+
+    - name: Config memcache
+      lineinfile:
+        dest: /etc/sysconfig/memcached
+        regexp: "OPTIONS="
+        line: 'LISTEN="0.0.0.0"'
+ 
+    - name: retstart memcache
+      service:
+        name: memcached
+        enabled: yes
+        state: restarted
+
+    - name: keystone
+      yum: pkg={{item}} state=installed
+      with_items:
+        - openstack-keystone
+        - httpd
+        - mod_wsgi
+      retries: 5
+
+
+
+    - name: Create a new database with name 'keystone'
+      mysql_db:
+        login_password: admin
+        login_user: root
+        name: keystone
+        state: present
+
+    - name: Change root user password keystone
+      mysql_user: login_user=root
+                  login_password='admin'
+                  name=keystone
+                  password='admin'
+                  priv=keystone.*:ALL,GRANT
+                  host={{ item }}
+      with_items:
+        - 0.0.0.0/0
+        - 127.0.0.1
+        - ::1
+        - "%"
+        - localhost
+        - controller
+      ignore_errors: True
+
+    - name: change keystone
+      lineinfile:
+        dest: /etc/chrony.conf
+        line: server cn.pool.ntp.org iburst
+ 
+    - name: config keystone database
+      ini_file:
+        dest: /etc/keystone/keystone.conf
+        section: database
+        option: connection 
+        value: mysql+pymysql://keystone:admin@controller/keystone 
+    - name: config keystone token
+      ini_file:
+        dest: /etc/keystone/keystone.conf
+        section: token
+        option: provider
+        value: fernet 
+    - name: init keystone db
+      command: /bin/sh -c "keystone-manage db_sync" keystone
+      become: true
+      become_method: su
+      become_user: keystone
+      become_flags: '-s /bin/sh'
+    - name: keystone manager
+      command: "{{item}}"
+      with_items:
+        - keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
+        - keystone-manage credential_setup --keystone-user keystone --keystone-group keystone
+        - keystone-manage bootstrap --bootstrap-password admin --bootstrap-admin-url http://controller:35357/v3/ --bootstrap-internal-url http://controller:5000/v3/ --bootstrap-public-url http://controller:5000/v3/ --bootstrap-region-id RegionOne
+
+    - name: httpd config
+      lineinfile:
+        dest: /etc/httpd/conf/httpd.conf
+        line: ServerName controller
+    - name: link httpd file
+      file:
+        src: /usr/share/keystone/wsgi-keystone.conf
+        dest: /etc/httpd/conf.d/wsgi-keystone.conf
+        state: link
+
+    - name: retstart httpd
+      service:
+        name: httpd
+        enabled: yes
+        state: restarted
+ 
+    - name: Create project
+      shell: "{{ item }}"
+      with_items:
+        - openstack project create --domain default --description "Service Project" service
+        - openstack project create --domain default --description "Demo Project" demo
+      environment:
+        - OS_USERNAME: admin
+        - OS_PASSWORD: admin
+        - OS_PROJECT_NAME: admin
+        - OS_USER_DOMAIN_NAME: Default
+        - OS_PROJECT_DOMAIN_NAME: Default
+        - OS_AUTH_URL: http://controller:35357/v3
+        - OS_IDENTITY_API_VERSION: 3
+      ignore_errors: true
+  
+    - name: Create a new database with name 'image'
+      mysql_db:
+        login_password: admin
+        login_user: root
+        name: glance
+        state: present
+    - name: Change root user password 'image'
+      mysql_user: login_user=root
+                  login_password='admin'
+                  name=glance
+                  password='admin'
+                  priv=glance.*:ALL,GRANT
+                  host={{ item }}
+      with_items:
+        - 0.0.0.0/0
+        - 127.0.0.1
+        - ::1
+        - "%"
+        - localhost
+        - controller
+      ignore_errors: True
+
+    - name: create glance user
+      command: "{{ item }}"
+      with_items:
+        - /usr/bin/openstack  user create --domain default --password admin glance
+        - /usr/bin/openstack role add --project service --user glance admin 
+        - /usr/bin/openstack service create --name glance --description "OpenStack Image" image
+        - /usr/bin/openstack endpoint create --region RegionOne image public http://controller:9292
+        - /usr/bin/openstack endpoint create --region RegionOne image internal http://controller:9292
+        - /usr/bin/openstack endpoint create --region RegionOne image admin http://controller:9292
+      environment:
+        - OS_USERNAME: admin
+        - OS_PASSWORD: admin
+        - OS_PROJECT_NAME: admin
+        - OS_USER_DOMAIN_NAME: Default
+        - OS_PROJECT_DOMAIN_NAME: Default
+        - OS_AUTH_URL: http://controller:35357/v3
+        - OS_IDENTITY_API_VERSION: 3
+
+    - name: Config the glance api connect
+      ini_file:
+        dest: /etc/glance/glance-api.conf
+        section: database
+        option: connection
+        value: mysql+pymysql://glance:admin@controller/glance
+
+    - name: Config the glance api keystone authtoken
+      ini_file:
+        dest: /etc/glance/glance-api.conf
+        section: keystone_authtoken
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: auth_uri, value: "http://controller:5000"}
+        - { option: auth_url, value: "http://controller:35357"}
+        - { option: memcached_servers, value: "controller:11211"}
+        - { option: auth_type, value: password}
+        - { option: project_domain_name, value: default }
+        - { option: user_domain_name, value: default }
+        - { option: project_name, value: service }
+        - { option: username, value: glance }
+        - { option: password, value: admin }
+
+    - name: Config the glance api  paste deploy
+      ini_file:
+        dest: /etc/glance/glance-api.conf
+        section: paste_deploy
+        option: flavor
+        value: keystone
+
+    - name: Config the glance api keystone authtoken
+      ini_file:
+        dest: /etc/glance/glance-api.conf
+        section: glance_store
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: stores, value: file, http}
+        - { option: data_store, value: file}
+        - { option: filesystem_store_datadir, value: /var/lib/glance/images/}
+ 
+
+    - name: Config the glance api connect
+      ini_file:
+        dest: /etc/glance/glance-registry.conf
+        section: database
+        option: connection
+        value: mysql+pymysql://glance:admin@controller/glance
+
+    - name: Config the glance api keystone authtoken
+      ini_file:
+        dest: /etc/glance/glance-registry.conf
+        section: keystone_authtoken
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: auth_uri, value: "http://controller:5000"}
+        - { option: auth_url, value: "http://controller:35357"}
+        - { option: memcached_servers, value: "controller:11211"}
+        - { option: auth_type, value: password}
+        - { option: project_domain_name, value: default }
+        - { option: user_domain_name, value: default }
+        - { option: project_name, value: service }
+        - { option: username, value: glance }
+        - { option: password, value: admin }
+
+    - name: Config the glance api  paste deploy
+      ini_file:
+        dest: /etc/glance/glance-registry.conf
+        section: paste_deploy
+        option: flavor
+        value: keystone
+
+    - name: init glance db
+      command: /bin/sh -c "glance-manage db_sync" glance
+      become: true
+      become_method: su
+      become_user: glance
+      become_flags: '-s /bin/sh'
+      ignore_errors: true
+      # because a python deparcated warning
+ 
+    - name: retstart glance
+      service:
+        name: "{{item}}"
+        enabled: yes
+        state: restarted
+      with_items:
+        - openstack-glance-api
+        - openstack-glance-registry  
+
