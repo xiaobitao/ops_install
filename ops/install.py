@@ -41,8 +41,6 @@ def main():
     cmd = (
         'ansible-playbook -i %s ./config_hostname.yml -e '
         'hosts_file=%s' % (INVEN_FILE, HOSTS_FILE))
-    process_ansible(cmd)
-    time.sleep(300)
     cmd = 'ansible-playbook -i %s ./install_controller.yml' % INVEN_FILE
     process_ansible(cmd)
     cmd = 'ansible-playbook -i %s ./controller_nova.yml' % INVEN_FILE
