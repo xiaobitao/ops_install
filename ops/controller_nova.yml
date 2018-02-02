@@ -116,6 +116,9 @@
         - { option: transport_url , value: "rabbit://openstack:admin@controller"}
         - { option: my_ip, value: "controller"}
         - { option: use_neutron, value: True}
+        - { option: vif_plugging_is_fatal, value: False}
+        - { option: vif_plugging_timeout, value: 30}
+        - { option: use_neutron, value: True}
         - { option: firewall_driver, value: nova.virt.firewall.NoopFirewallDriver}
 
     - name: Config the nova connect 
