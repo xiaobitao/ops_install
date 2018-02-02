@@ -5,10 +5,10 @@
     - name: iptables flush
       command: iptables -F
 
-    - name: update all package
-      yum:
-        name: "*"
-        state: latest
+    # - name: update all package
+    #  yum:
+    #    name: "*"
+    #    state: latest
 
 
 
@@ -115,25 +115,6 @@
         - { option: username, value: placement }
         - { option: password, value: admin }
         - { option: auth_url, value: "http://controller:35357/v3" }
-
-    - name: Config the nova api keystone authtoken
-      ini_file:
-        dest: /etc/nova/nova.conf
-        section: neutron
-        option: "{{ item.option }}"
-        value: "{{ item.value }}"
-      with_items:
-        - { option: os_region_name , value: RegionOne}
-        - { option: project_domain_name , value: Default}
-        - { option: project_name , value: service}
-        - { option: auth_type, value: password}
-        - { option: project_domain_name, value: Default }
-        - { option: user_domain_name, value: Default }
-        - { option: project_name, value: service }
-        - { option: username, value: neutron }
-        - { option: password, value: admin }
-        - { option: auth_url, value: "http://controller:35357/v3" }
-
 
     - name: retstart nova
       service:

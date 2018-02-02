@@ -52,6 +52,7 @@
         - OS_PROJECT_DOMAIN_NAME: Default
         - OS_AUTH_URL: http://controller:35357/v3
         - OS_IDENTITY_API_VERSION: 3
+
     - name: Config the metadata agent
       ini_file:
         dest: /etc/neutron/metadata_agent.ini
@@ -72,7 +73,7 @@
         value: "{{ item.value }}"
       with_items:
         - { option: url, value: "http://controller:9696"}
-        - { option: auth_url, value: "http://controller:35357"}
+        - { option: auth_url, value: "http://controller:35357/v3"}
         - { option: auth_type, value: password}
         - { option: project_domain_name , value: default}
         - { option: user_domain_name , value: default}
@@ -81,6 +82,7 @@
         - { option: password, value: admin}
         - { option: service_metadata_proxy, value: true}
         - { option: metadata_proxy_shared_secret, value: admin}
+
     - name: Config the nova api keystone authtoken
       ini_file:
         dest: /etc/neutron/neutron.conf
@@ -88,12 +90,11 @@
         option: "{{ item.option }}"
         value: "{{ item.value }}"
       with_items:
-        - { option: auth_uri, value: "http://controller:5000"}
         - { option: auth_url, value: "http://controller:35357"}
-        - { option: memcached_servers, value: "controller:11211"}
         - { option: auth_type, value: password}
         - { option: project_domain_name, value: default }
         - { option: user_domain_name, value: default }
+        - { option: region_name, value: RegionOne}
         - { option: project_name, value: service }
         - { option: username, value: nova }
         - { option: password, value: admin }
@@ -151,7 +152,7 @@
         option: "{{ item.option }}"
         value: "{{ item.value }}"
       with_items:
-        - { option: type_drivers , value: "flat,vlan"}
+        - { option: type_drivers , value: "flat,vlan,vxlan"}
         - { option: tenant_network_types , value: ""}
         - { option: mechanism_drivers , value: openvswitch}
         - { option: extension_drivers , value: port_security}
@@ -169,20 +170,14 @@
         section: ml2_type_vlan
         option: network_vlan_ranges
         value: provider
-    # - name: Config ml2 type vxlan
-    #   ini_file:
-    #    dest: /etc/neutron/plugins/ml2/ml2_conf.ini
-    #    section: ml2_type_vxlan
-    #    option: vni_ranges
-    #    value: "4096:16777215"
+
     - name: Config ml2 securitygroup
       ini_file:
         dest: /etc/neutron/plugins/ml2/ml2_conf.ini
         section: securitygroup
         option: enable_ipset 
         value: True
-    # config ovs agent
-    # br-provider modify to yeesan in later
+
     - name: config the br-provider
       ini_file:
         dest: /etc/neutron/plugins/ml2/openvswitch_agent.ini
@@ -192,6 +187,7 @@
       with_items:
         - { option: local_ip, value: "{{ansible_default_ipv4.address}}"} 
         - { option: bridge_mappings, value: "provider:br-provider" }
+
     - name: config the agent
       ini_file:
         dest: /etc/neutron/plugins/ml2/openvswitch_agent.ini

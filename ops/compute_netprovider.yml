@@ -11,24 +11,6 @@
         - ebtables
         - openvswitch
     # config the nova part
-    - name: Config the securitygroup
-      ini_file:
-        dest: /etc/nova/nova.conf
-        section: neutron
-        option: "{{ item.option }}"
-        value: "{{ item.value }}"
-      with_items:
-        - { option: url, value: "http://controller:9696"}
-        - { option: auth_url, value: "http://controller:35357"}
-        - { option: auth_type, value: password}
-        - { option: project_domain_name , value: default}
-        - { option: user_domain_name , value: default}
-        - { option: region_name, value: RegionOne}
-        - { option: user_name, value: neutron}
-        - { option: password, value: admin}
-        - { option: service_metadata_proxy, value: true}
-        - { option: metadata_proxy_shared_secret, value: admin}
-
     - name: Config the dhcp agent
       ini_file:
         dest: /etc/neutron/dhcp_agent.ini
@@ -42,17 +24,17 @@
         - { option: enable_isolated_metadata, value: true}
 
     # config neutron part
-    - name: Config the neutron default
-      ini_file:
-        dest: /etc/neutron/neutron.conf
-        section: DEFAULT
-        option: "{{ item.option }}"
-        value: "{{ item.value }}"
-      with_items:
-        - { option: verbose, value: True}
-        - { option: transport_url, value: "rabbit://openstack:admin@controller"}
-        - { option: notify_nova_on_port_status_changes, value: true}
-        - { option: notify_nova_on_port_data_changes , value: true}
+    #- name: Config the neutron default
+    #  ini_file:
+    #    dest: /etc/neutron/neutron.conf
+    #    section: DEFAULT
+    #    option: "{{ item.option }}"
+    #    value: "{{ item.value }}"
+    #  with_items:
+    #    - { option: verbose, value: True}
+    #    - { option: transport_url, value: "rabbit://openstack:admin@controller"}
+    #    - { option: notify_nova_on_port_status_changes, value: true}
+    #    - { option: notify_nova_on_port_data_changes , value: true}
 
     - name: config the br-provider
       ini_file:

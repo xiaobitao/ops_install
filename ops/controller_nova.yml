@@ -215,7 +215,7 @@
         - { option: project_name, value: service }
         - { option: username, value: neutron }
         - { option: password, value: admin }
-        - { option: auth_url, value: "http://controller:35357/v3" }
+        - { option: auth_url, value: "http://controller:35357" }
         - { option: url, value: "http://controller:9696" }
 
 
