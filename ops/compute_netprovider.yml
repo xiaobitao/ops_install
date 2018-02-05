@@ -77,9 +77,7 @@
       command: "{{item}}"
       with_items:
         - ovs-vsctl --if-exists del-br br-porvider
-        - ifconfig ens256 up
         - ovs-vsctl add-br br-provider
-        - ovs-vsctl add-port br-provider eno67115776
         - ovs-ofctl add-flow br-provider dst_port=67, actions=drop
         - ovs-ofctl add-flow br-provider dst_port=68, actions=drop
       ignore_errors: True

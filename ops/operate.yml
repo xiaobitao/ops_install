@@ -37,8 +37,12 @@
     - name: Create network
       shell: "{{ item }}"
       with_items:
-        - openstack network create  --share --external --provider-physical-network provider --provider-network-type flat provider 
-        - openstack network create provider-101 --shared --provider:physical_network provider --provider:network_type vlan --provider:segmentation_id 101
+        - openstack network create --external provider1
+        - openstack network create selfservice1 
+        - openstack subnet create --subnet-range 192.0.2.0/24 --network selfservice1 --dns-nameserver 8.8.4.4 selfservice1-v4
+        - openstack router create router1
+        - openstack router add subnet router1 selfservice1-v4
+        - neutron router-gateway-set router1 provider1
       environment:
         - OS_USERNAME: admin
         - OS_PASSWORD: admin

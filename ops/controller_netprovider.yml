@@ -120,6 +120,8 @@
         - { option: notify_nova_on_port_data_changes , value: true}
         - { option: auth_strategy  , value: keystone}
         - { option: verbose, value: True}
+        - { option: allow_overlapping_ips, value: True}
+        - { option: service_plugins , value: router}
       # config the keystone auth of neutron
     - name: Config the glance api keystone authtoken for neutron
       ini_file:
@@ -153,7 +155,7 @@
         value: "{{ item.value }}"
       with_items:
         - { option: type_drivers , value: "flat,vlan,vxlan"}
-        - { option: tenant_network_types , value: ""}
+        - { option: tenant_network_types , value: "vxlan"}
         - { option: mechanism_drivers , value: openvswitch}
         - { option: extension_drivers , value: port_security}
 
@@ -170,6 +172,13 @@
         section: ml2_type_vlan
         option: network_vlan_ranges
         value: provider
+
+    - name: Config ml2 type vlan
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/ml2_conf.ini
+        section: ml2_type_vxlan
+        option: vni_ranges
+        value: 10:4000 
 
     - name: Config ml2 securitygroup
       ini_file:
@@ -198,6 +207,7 @@
         - { option: tunnel_types ,value: vxlan}
         - { option: l2_population, value: False}
         - { option: prevent_arp_spoofing, value: False}
+
     - name: Config the securitygroup
       ini_file:
         dest: /etc/neutron/plugins/ml2/openvswitch_agent.ini
@@ -207,6 +217,7 @@
       with_items:
         - { option: firewall_driver, value: "neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver"}
         - { option: enable_security_group, value: True}
+
      # config the dhcp
     - name: Config the dhcp agent
       ini_file:
@@ -218,9 +229,20 @@
         - { option: verbose, value: True}
         - { option: interface_driver , value: neutron.agent.linux.interface.OVSInterfaceDriver}
         - { option: dhcp_driver , value: neutron.agent.linux.dhcp.Dnsmasq}
+        - { option: external_network_bridge , value: ""}
         - { option: enable_isolated_metadata, value: true}
  
-
+    - name: Config the dhcp agent
+      ini_file:
+        dest: /etc/neutron/l3_agent.ini
+        section: DEFAULT
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: verbose, value: True}
+        - { option: interface_driver , value: neutron.agent.linux.interface.OVSInterfaceDriver}
+        - { option: external_network_bridge , value: ""}
+  
     - name: link ml2 file
       file:
         src: /etc/neutron/plugins/ml2/ml2_conf.ini
@@ -236,9 +258,9 @@
     - name: ovs
       command: "{{item}}"
       with_items:
-        - ifconfig ens256 up
+        - ifconfig eth1 up
         - ovs-vsctl add-br br-provider
-        - ovs-vsctl add-port br-provider ens256
+        - ovs-vsctl add-port br-provider eth1
       ignore_errors: True
     
 
@@ -278,3 +300,4 @@
         - neutron-openvswitch-agent
         - neutron-metadata-agent
         - neutron-dhcp-agent
+        - neutron-l3-agent
