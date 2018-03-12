@@ -22,6 +22,7 @@
     - name: install openstack repo
       yum:
         name: centos-release-openstack-pike
+        # name: centos-release-openstack-ocata
         state: latest
 
     - name: make cache

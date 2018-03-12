@@ -157,7 +157,7 @@
         - { option: type_drivers , value: "flat,vlan,vxlan"}
         - { option: tenant_network_types , value: "vxlan"}
         - { option: mechanism_drivers , value: openvswitch}
-        - { option: extension_drivers , value: port_security}
+        - { option: extension_drivers , value: ""}
 
     - name: Config ml2 type flat
       ini_file:

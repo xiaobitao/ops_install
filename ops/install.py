@@ -38,19 +38,24 @@ def main():
         index += 1
     generate_config(controller_ip, compute_ips)
     # begin to start ansible call
-    cmd = (
-        'ansible-playbook -i %s ./config_hostname.yml -e '
-        'hosts_file=%s' % (INVEN_FILE, HOSTS_FILE))
+    # cmd = (
+    #    'ansible-playbook -i %s ./config_hostname.yml -e '
+    #    'hosts_file=%s' % (INVEN_FILE, HOSTS_FILE))
     cmd = 'ansible-playbook -i %s ./install_controller.yml' % INVEN_FILE
     process_ansible(cmd)
+    time.sleep(60)
     cmd = 'ansible-playbook -i %s ./controller_nova.yml' % INVEN_FILE
     process_ansible(cmd)
+    time.sleep(60)
     cmd = 'ansible-playbook -i %s ./controller_netprovider.yml' % INVEN_FILE
     process_ansible(cmd)
+    time.sleep(60)
     cmd = 'ansible-playbook -i %s ./compute_nova.yml' % INVEN_FILE
     process_ansible(cmd)
+    time.sleep(60)
     cmd = 'ansible-playbook -i %s ./compute_netprovider.yml' % INVEN_FILE
     process_ansible(cmd)
+    time.sleep(60)
     cmd = 'ansible-playbook -i %s ./operate.yml' % INVEN_FILE
     process_ansible(cmd)
 
