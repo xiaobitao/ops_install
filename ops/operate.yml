@@ -1,0 +1,93 @@
+- hosts: controller
+  remote_user: root
+  tasks:
+    - name: Create config file
+      file:
+        dest: ~/admin.rc
+        state: touch
+        mode: 0755
+
+    - name: Gen rc file
+      blockinfile:
+        dest: ~/admin.rc
+        block: |
+          export OS_PROJECT_DOMAIN_NAME=Default
+          export OS_USER_DOMAIN_NAME=Default
+          export OS_PROJECT_NAME=admin
+          export OS_USERNAME=admin
+          export OS_PASSWORD=admin
+          export OS_AUTH_URL=http://controller:35357/v3
+          export OS_IDENTITY_API_VERSION=3
+          export OS_IMAGE_API_VERSION=2
+    - name: install openstack dashboard
+      yum:
+        name: openstack-dashboard
+        state: latest
+
+    - name: init nova cell
+      command: "{{item}}"
+      with_items:
+        - /bin/sh -c "nova-manage cell_v2 discover_hosts --verbose" nova
+      become: true
+      become_method: su
+      become_user: nova
+      become_flags: '-s /bin/sh'
+      ignore_errors: True
+
+    - name: Create network
+      shell: "{{ item }}"
+      with_items:
+        - openstack network create  --share --external --provider-physical-network provider --provider-network-type flat provider 
+        - openstack network create provider-101 --shared --provider:physical_network provider --provider:network_type vlan --provider:segmentation_id 101
+      environment:
+        - OS_USERNAME: admin
+        - OS_PASSWORD: admin
+        - OS_PROJECT_NAME: admin
+        - OS_USER_DOMAIN_NAME: Default
+        - OS_PROJECT_DOMAIN_NAME: Default
+        - OS_AUTH_URL: http://controller:35357/v3
+        - OS_IDENTITY_API_VERSION: 3
+      ignore_errors: true
+    - name: copy local setting
+      copy:
+        src: ./local_settings
+        dest: /etc/openstack-dashboard/local_settings
+        mode: 0755
+    - name: replace openstack host ip
+      replace:
+        dest: /etc/openstack-dashboard/local_settings
+        regexp: "OPENSTACK_HOST = \".*\""
+        replace: "OPENSTACK_HOST = \"{{ansible_default_ipv4.address}}\""
+        backup: yes
+
+    - name: retstart nova
+      service:
+        name: "{{item}}"
+        enabled: yes
+        state: restarted
+      with_items:
+        - openstack-nova-api
+        - openstack-nova-consoleauth
+        - openstack-nova-scheduler
+        - openstack-nova-conductor
+        - openstack-nova-novncproxy
+        - httpd
+        - neutron-server
+ 
+    - name: Download cirros img
+      get_url:
+        url: http://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img 
+        dest: /root/cirros-0.4.0-x86_64-disk.img
+        mode: 0440
+
+    - name: upload image
+      command: openstack image create --disk-format qcow2 --container-format bare --file /root/cirros-0.4.0-x86_64-disk.img cirros
+      environment:
+        - OS_USERNAME: admin
+        - OS_PASSWORD: admin
+        - OS_PROJECT_NAME: admin
+        - OS_USER_DOMAIN_NAME: Default
+        - OS_PROJECT_DOMAIN_NAME: Default
+        - OS_AUTH_URL: http://controller:35357/v3
+        - OS_IDENTITY_API_VERSION: 3
+

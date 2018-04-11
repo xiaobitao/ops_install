@@ -1,0 +1,271 @@
+- hosts: all
+  vars:
+  remote_user: root
+  tasks:
+    - name: Create a new database with name 'nova_api'
+      mysql_db:
+        login_password: admin
+        login_user: root
+        name: nova_api
+        state: present
+    - name: Create a new database with name 'nova'
+      mysql_db:
+        login_password: admin
+        login_user: root
+        name: nova
+        state: present
+    - name: Create a new database with name 'nova_cell0'
+      mysql_db:
+        login_password: admin
+        login_user: root
+        name: nova_cell0
+        state: present
+
+    - name: grant nova api
+      mysql_user: login_user=root
+                  login_password='admin'
+                  name=nova
+                  password='admin'
+                  priv=nova_api.*:ALL,GRANT
+                  host={{ item }}
+      with_items:
+        - 0.0.0.0/0
+        - 127.0.0.1
+        - ::1
+        - "%"
+        - localhost
+        - "controller"
+      ignore_errors: True
+
+    - name: grant nova
+      mysql_user: login_user=root
+                  login_password='admin'
+                  name=nova
+                  append_privs=true
+                  priv=nova.*:ALL,GRANT
+                  host={{ item }}
+      with_items:
+        - 0.0.0.0/0
+        - 127.0.0.1
+        - ::1
+        - "%"
+        - localhost
+        - controller
+      ignore_errors: True
+    - name: grant nova_cell0
+      mysql_user: login_user=root
+                  login_password='admin'
+                  name=nova
+                  append_privs=true
+                  priv=nova_cell0.*:ALL,GRANT
+                  host={{ item }}
+      with_items:
+        - 0.0.0.0/0
+        - 127.0.0.1
+        - ::1
+        - "%"
+        - localhost
+        - controller
+      ignore_errors: True
+
+
+
+    - name: create nova user
+      command: "{{ item }}"
+      with_items:
+        - /usr/bin/openstack  user create --domain default --password admin nova
+        - /usr/bin/openstack role add --project service --user nova admin
+        - /usr/bin/openstack service create --name nova --description "OpenStack Compute" compute
+        - /usr/bin/openstack endpoint create --region RegionOne compute public http://controller:8774/v2.1
+        - /usr/bin/openstack endpoint create --region RegionOne compute internal http://controller:8774/v2.1
+        - /usr/bin/openstack endpoint create --region RegionOne compute admin http://controller:8775/v2.1
+        - /usr/bin/openstack  user create --domain default --password admin placement
+        - /usr/bin/openstack role add --project service --user placement admin
+        - /usr/bin/openstack service create --name nova --description "Placement API" placement
+        - /usr/bin/openstack endpoint create --region RegionOne placement public http://controller:8778
+        - /usr/bin/openstack endpoint create --region RegionOne placement internal http://controller:8778
+        - /usr/bin/openstack endpoint create --region RegionOne placement admin http://controller:8778
+      environment:
+        - OS_USERNAME: admin
+        - OS_PASSWORD: admin
+        - OS_PROJECT_NAME: admin
+        - OS_USER_DOMAIN_NAME: Default
+        - OS_PROJECT_DOMAIN_NAME: Default
+        - OS_AUTH_URL: http://controller:35357/v3
+        - OS_IDENTITY_API_VERSION: 3
+
+    - name: nova package
+      yum: pkg={{item}} state=installed
+      with_items:
+        - openstack-nova-api
+        - openstack-nova-conductor
+        - openstack-nova-console
+        - openstack-nova-novncproxy
+        - openstack-nova-scheduler
+        - openstack-nova-placement-api
+
+
+    - name: Config the nova
+      ini_file:
+        dest: /etc/nova/nova.conf
+        section: DEFAULT
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: enabled_apis , value: osapi_compute,metadata}
+        - { option: transport_url , value: "rabbit://openstack:admin@controller"}
+        - { option: my_ip, value: "controller"}
+        - { option: use_neutron, value: True}
+        - { option: vif_plugging_is_fatal, value: False}
+        - { option: vif_plugging_timeout, value: 30}
+        - { option: use_neutron, value: True}
+        - { option: firewall_driver, value: nova.virt.firewall.NoopFirewallDriver}
+
+    - name: Config the nova connect 
+      ini_file: 
+        dest: /etc/nova/nova.conf 
+        section: api_database 
+        option: connection 
+        value: mysql+pymysql://nova:admin@controller/nova_api 
+    - name: Config the nova api connect 
+      ini_file: 
+        dest: /etc/nova/nova.conf 
+        section: database 
+        option: connection 
+        value: mysql+pymysql://nova:admin@controller/nova
+    - name: Config the nova api auth
+      ini_file: 
+        dest: /etc/nova/nova.conf 
+        section: api 
+        option: auth_strategy 
+        value: keystone
+
+    - name: Config the nova api keystone authtoken
+      ini_file:
+        dest: /etc/nova/nova.conf
+        section: keystone_authtoken
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: auth_uri, value: "http://controller:5000"}
+        - { option: auth_url, value: "http://controller:35357"}
+        - { option: memcached_servers, value: "controller:11211"}
+        - { option: auth_type, value: password}
+        - { option: project_domain_name, value: default }
+        - { option: user_domain_name, value: default }
+        - { option: project_name, value: service }
+        - { option: username, value: nova }
+        - { option: password, value: admin }
+
+    - name: Config the nova vnc
+      ini_file:
+        dest: /etc/nova/nova.conf
+        section: vnc
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: enabled, value: true}
+        - { option: vncserver_listen , value: "$my_ip"}
+        - { option: vncserver_proxyclient_address , value: "$my_ip"}
+        - { option: novncproxy_base_url , value: "http://{{ansible_default_ipv4.address}}:6080/vnc_auto.html"}
+
+    - name: Config the nova glance
+      ini_file: 
+        dest: /etc/nova/nova.conf 
+        section: glance 
+        option: api_servers 
+        value: "http://controller:9292"
+    - name: Config oslo concurrency
+      ini_file: 
+        dest: /etc/nova/nova.conf 
+        section: oslo_concurrency 
+        option: lock_path 
+        value: /var/lib/nova/tmp
+
+
+    - name: Config the nova api keystone authtoken
+      ini_file:
+        dest: /etc/nova/nova.conf
+        section: placement
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: os_region_name , value: RegionOne}
+        - { option: project_domain_name , value: Default}
+        - { option: project_name , value: service}
+        - { option: auth_type, value: password}
+        - { option: project_domain_name, value: Default }
+        - { option: user_domain_name, value: Default }
+        - { option: project_name, value: service }
+        - { option: username, value: placement }
+        - { option: password, value: admin }
+        - { option: auth_url, value: "http://controller:35357/v3" }
+
+    # this option is deprecated, but auth_plugin cannot use
+    - name: Config the nova api keystone authtoken
+      ini_file:
+        dest: /etc/nova/nova.conf
+        section: neutron
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: os_region_name , value: RegionOne}
+        - { option: project_domain_name , value: Default}
+        - { option: project_name , value: service}
+        - { option: auth_type, value: password}
+        - { option: project_domain_name, value: Default }
+        - { option: user_domain_name, value: Default }
+        - { option: project_name, value: service }
+        - { option: username, value: neutron }
+        - { option: password, value: admin }
+        - { option: auth_url, value: "http://controller:35357" }
+        - { option: url, value: "http://controller:9696" }
+
+
+
+    - name: Create config file
+      file:
+        dest: /etc/httpd/conf.d/00-nova-placement-api.conf
+        state: touch
+        mode: 0755
+
+    - name: Config the maridb config
+      blockinfile:
+        dest: /etc/httpd/conf.d/00-nova-placement-api.conf
+        block: |
+          <Directory /usr/bin>
+            <IfVersion >= 2.4>
+              Require all granted
+            </IfVersion>
+            <IfVersion < 2.4>
+              Order allow,deny
+              Allow from all
+            </IfVersion>
+          </Directory>
+
+    - name: init nova db
+      command: "{{item}}" 
+      with_items:
+        - /bin/sh -c "nova-manage api_db sync" nova
+        - /bin/sh -c "nova-manage cell_v2 map_cell0" nova
+        - /bin/sh -c "nova-manage cell_v2 create_cell --name=cell1 --verbose" nova
+        - /bin/sh -c "nova-manage db sync" nova
+        
+      become: true
+      become_method: su
+      become_user: nova
+      become_flags: '-s /bin/sh'
+      ignore_errors: True
+
+    - name: retstart nova
+      service:
+        name: "{{item}}"
+        enabled: yes
+        state: restarted
+      with_items:
+        - openstack-nova-api
+        - openstack-nova-consoleauth
+        - openstack-nova-scheduler
+        - openstack-nova-conductor
+        - openstack-nova-novncproxy
+

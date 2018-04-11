@@ -1,0 +1,280 @@
+- hosts: controller
+  remote_user: root
+  tasks:
+    - name: Create a new database with name 'keystone'
+      mysql_db:
+        login_password: admin
+        login_user: root
+        name: neutron
+        state: present
+    - name: Change root user password neutron
+      mysql_user: login_user=root
+                  login_password='admin'
+                  name=neutron
+                  password='admin'
+                  priv=neutron.*:ALL,GRANT
+                  host={{ item }}
+      with_items:
+        - 0.0.0.0/0
+        - 127.0.0.1
+        - ::1
+        - "%"
+        - localhost
+        - controller
+      ignore_errors: True
+
+    - name: install openstack neutron
+      yum: pkg={{item}} state=installed
+      with_items:
+        - openstack-neutron
+        - openstack-neutron-common
+        - openstack-neutron-openvswitch
+        - openstack-neutron-rpc-server
+        - openstack-neutron-ml2
+        - ebtables
+        - openvswitch
+
+
+    - name: create neutron user
+      command: "{{ item }}"
+      with_items:
+        - /usr/bin/openstack  user create --domain default --password admin neutron
+        - /usr/bin/openstack role add --project service --user neutron admin
+        - /usr/bin/openstack service create --name neutron --description "OpenStack Network" network
+        - /usr/bin/openstack endpoint create --region RegionOne network public http://controller:9696
+        - /usr/bin/openstack endpoint create --region RegionOne network internal http://controller:9696
+        - /usr/bin/openstack endpoint create --region RegionOne network admin http://controller:9696
+      environment:
+        - OS_USERNAME: admin
+        - OS_PASSWORD: admin
+        - OS_PROJECT_NAME: admin
+        - OS_USER_DOMAIN_NAME: Default
+        - OS_PROJECT_DOMAIN_NAME: Default
+        - OS_AUTH_URL: http://controller:35357/v3
+        - OS_IDENTITY_API_VERSION: 3
+
+    - name: Config the metadata agent
+      ini_file:
+        dest: /etc/neutron/metadata_agent.ini
+        section: DEFAULT
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: nova_metadata_ip, value: controller}
+        - { option: metadata_proxy_shared_secret, value: admin}
+        - { option: dhcp_agents_per_network, value: 3}
+
+    # common config 
+    - name: Config the neutron
+      ini_file:
+        dest: /etc/neutron/neutron.conf
+        section: neutron
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: url, value: "http://controller:9696"}
+        - { option: auth_url, value: "http://controller:35357/v3"}
+        - { option: auth_type, value: password}
+        - { option: project_domain_name , value: default}
+        - { option: user_domain_name , value: default}
+        - { option: region_name, value: RegionOne}
+        - { option: user_name, value: neutron}
+        - { option: password, value: admin}
+        - { option: service_metadata_proxy, value: true}
+        - { option: metadata_proxy_shared_secret, value: admin}
+
+    - name: Config the nova api keystone authtoken
+      ini_file:
+        dest: /etc/neutron/neutron.conf
+        section: nova
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: auth_url, value: "http://controller:35357"}
+        - { option: auth_type, value: password}
+        - { option: project_domain_name, value: default }
+        - { option: user_domain_name, value: default }
+        - { option: region_name, value: RegionOne}
+        - { option: project_name, value: service }
+        - { option: username, value: nova }
+        - { option: password, value: admin }
+
+    # config server component
+    - name: config database
+      ini_file:
+        dest: /etc/neutron/neutron.conf
+        section: database
+        option: connection
+        value: mysql+pymysql://neutron:admin@controller/neutron
+    # config the default of neturon
+    - name: Config the neutron default
+      ini_file:
+        dest: /etc/neutron/neutron.conf
+        section: DEFAULT
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: core_plugin , value: ml2}
+        - { option: transport_url, value: "rabbit://openstack:admin@controller"}
+        - { option: notify_nova_on_port_status_changes, value: true}
+        - { option: notify_nova_on_port_data_changes , value: true}
+        - { option: auth_strategy  , value: keystone}
+        - { option: verbose, value: True}
+      # config the keystone auth of neutron
+    - name: Config the glance api keystone authtoken for neutron
+      ini_file:
+        dest: /etc/neutron/neutron.conf
+        section: keystone_authtoken
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: auth_uri, value: "http://controller:5000"}
+        - { option: auth_url, value: "http://controller:35357"}
+        - { option: memcached_servers, value: "controller:11211"}
+        - { option: auth_type, value: password}
+        - { option: project_domain_name, value: default }
+        - { option: user_domain_name, value: default }
+        - { option: project_name, value: service }
+        - { option: username, value: neutron }
+        - { option: password, value: admin }
+
+    - name: Config oslo concurrency
+      ini_file:
+        dest: /etc/neutron/neutron.conf
+        section: oslo_concurrency
+        option: lock_path
+        value: /var/lib/nova/tmp
+    # Follow part is config the ml2
+    - name: Config the ml2 of ml2
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/ml2_conf.ini
+        section: ml2
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: type_drivers , value: "flat,vlan,vxlan"}
+        - { option: tenant_network_types , value: ""}
+        - { option: mechanism_drivers , value: openvswitch}
+        - { option: extension_drivers , value: port_security}
+
+    - name: Config ml2 type flat
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/ml2_conf.ini
+        section: ml2_type_flat
+        option: flat_networks
+        value: provider
+      
+    - name: Config ml2 type vlan
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/ml2_conf.ini
+        section: ml2_type_vlan
+        option: network_vlan_ranges
+        value: provider
+
+    - name: Config ml2 securitygroup
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/ml2_conf.ini
+        section: securitygroup
+        option: enable_ipset 
+        value: True
+
+    - name: config the br-provider
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/openvswitch_agent.ini
+        section: ovs
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: local_ip, value: "{{ansible_default_ipv4.address}}"} 
+        - { option: bridge_mappings, value: "provider:br-provider" }
+
+    - name: config the agent
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/openvswitch_agent.ini
+        section: agent
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: tunnel_types ,value: vxlan}
+        - { option: l2_population, value: False}
+        - { option: prevent_arp_spoofing, value: False}
+    - name: Config the securitygroup
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/openvswitch_agent.ini
+        section: securitygroup
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: firewall_driver, value: "neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver"}
+        - { option: enable_security_group, value: True}
+     # config the dhcp
+    - name: Config the dhcp agent
+      ini_file:
+        dest: /etc/neutron/dhcp_agent.ini
+        section: DEFAULT
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: verbose, value: True}
+        - { option: interface_driver , value: neutron.agent.linux.interface.OVSInterfaceDriver}
+        - { option: dhcp_driver , value: neutron.agent.linux.dhcp.Dnsmasq}
+        - { option: enable_isolated_metadata, value: true}
+ 
+
+    - name: link ml2 file
+      file:
+        src: /etc/neutron/plugins/ml2/ml2_conf.ini
+        dest:  /etc/neutron/plugin.ini
+        state: link
+
+    - name: retstart openvswitch
+      service:
+        name: openvswitch
+        state: restarted
+        enabled: yes
+ 
+    - name: ovs
+      command: "{{item}}"
+      with_items:
+        - ifconfig ens256 up
+        - ovs-vsctl add-br br-provider
+        - ovs-vsctl add-port br-provider ens256
+      ignore_errors: True
+    
+
+    - name: init neutron db
+      command: /bin/sh -c "neutron-db-manage --config-file /etc/neutron/neutron.conf --config-file /etc/neutron/plugins/ml2/ml2_conf.ini upgrade head" neutron
+      become: true
+      become_method: su
+      become_user: neutron
+      become_flags: '-s /bin/sh'
+      ignore_errors: true
+
+    - name: retstart nova api
+      service:
+        name: openstack-nova-api
+        state: restarted
+    - name: config neutron start service timeout
+      ini_file:
+        dest: /usr/lib/systemd/system/neutron-server.service
+        section: Service
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: TimeoutStartSec, value: 1200}
+    - name: create neutron user
+      command: "{{ item }}"
+      with_items:
+        - systemctl daemon-reload
+
+ 
+    - name: neutron
+      service:
+        name: "{{item}}"
+        enabled: yes
+        state: restarted
+      with_items:
+        - neutron-server
+        - neutron-openvswitch-agent
+        - neutron-metadata-agent
+        - neutron-dhcp-agent

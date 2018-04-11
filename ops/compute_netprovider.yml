@@ -1,0 +1,97 @@
+- hosts: compute
+  remote_user: root
+  tasks:
+    - name: install openstack neutron
+      yum: pkg={{item}} state=installed
+      with_items:
+        - openstack-neutron
+        - openstack-neutron-common
+        - openstack-neutron-openvswitch
+        - openstack-neutron-ml2
+        - ebtables
+        - openvswitch
+    # config the nova part
+    - name: Config the dhcp agent
+      ini_file:
+        dest: /etc/neutron/dhcp_agent.ini
+        section: DEFAULT
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"                                                                                                                                           
+      with_items:
+        - { option: verbose, value: True}
+        - { option: interface_driver , value: neutron.agent.linux.interface.OVSInterfaceDriver}
+        - { option: dhcp_driver , value: neutron.agent.linux.dhcp.Dnsmasq}
+        - { option: enable_isolated_metadata, value: true}
+
+    # config neutron part
+    #- name: Config the neutron default
+    #  ini_file:
+    #    dest: /etc/neutron/neutron.conf
+    #    section: DEFAULT
+    #    option: "{{ item.option }}"
+    #    value: "{{ item.value }}"
+    #  with_items:
+    #    - { option: verbose, value: True}
+    #    - { option: transport_url, value: "rabbit://openstack:admin@controller"}
+    #    - { option: notify_nova_on_port_status_changes, value: true}
+    #    - { option: notify_nova_on_port_data_changes , value: true}
+
+    - name: config the br-provider
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/openvswitch_agent.ini
+        section: ovs
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: bridge_mappings, value: "provider:br-provider" }
+
+    # arp protect, not use ip not allocate
+    - name: config the agent
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/openvswitch_agent.ini
+        section: agent
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: l2_population, value: False}
+        - { option: prevent_arp_spoofing, value: False}
+
+    - name: Config the securitygroup
+      ini_file:
+        dest: /etc/neutron/plugins/ml2/openvswitch_agent.ini
+        section: securitygroup
+        option: "{{ item.option }}"
+        value: "{{ item.value }}"
+      with_items:
+        - { option: firewall_driver, value: "neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver"}
+        - { option: enable_security_group, value: True}
+
+
+    - name: retstart openvswitch
+      service:
+        name: openvswitch
+        state: restarted
+        enabled: yes
+
+    - name: ovs
+      command: "{{item}}"
+      with_items:
+        - ovs-vsctl --if-exists del-br br-porvider
+        - ifconfig ens256 up
+        - ovs-vsctl add-br br-provider
+        - ovs-vsctl add-port br-provider eno67115776
+        - ovs-ofctl add-flow br-provider dst_port=67, actions=drop
+        - ovs-ofctl add-flow br-provider dst_port=68, actions=drop
+      ignore_errors: True
+    - name: neutron
+      service:
+        name: "{{item}}"
+        enabled: yes
+        state: restarted
+      with_items:
+        - neutron-openvswitch-agent
+        - openstack-nova-compute
+        - neutron-dhcp-agent
+
+
+
