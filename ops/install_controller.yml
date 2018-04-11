@@ -1,8 +1,18 @@
 - hosts: controller
   remote_user: root
   tasks:
+
     - name: iptables flush
-      command: iptables -F
+      command: "{{item}}"
+      with_items:
+        - iptables -F
+        - setenforce 0
+      ignore_errors: True
+   
+    - name: off selinux
+      selinux:
+        state: disabled
+
 
     - name: stop firewalld
       systemd:
@@ -19,17 +29,17 @@
         list: "zeromq*"
         disablerepo: epel
 
-    # - name: install openstack repo
-    # yum:
-    #  name: centos-release-openstack-pike
-    #  state: latest
+    - name: install openstack repo
+      yum:
+        name: centos-release-openstack-pike
+        state: latest
 
-    - name: Add Some repo
-      yum_repository:
-          name: somerepo
-          description: Some YUM repo
-          baseurl: file:/mnt
-          gpgcheck: no
+    # - name: Add Some repo
+    #  yum_repository:
+    #      name: somerepo
+    #       description: Some YUM repo
+    #      baseurl: file:/mnt
+    #      gpgcheck: no
 
     - name: make cache
       command: yum makecache
